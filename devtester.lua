@@ -317,13 +317,14 @@ local function drawCallMenu()
                         changed, instruction.getValue = imgui.input_text("Array Index " .. i .. "-" .. i1, instruction.getValue)
                     else
                         local array = instruction.initValue
-                        local arraySize = #array
                         local numberArray = {}
-                        for i3 = 1, arraySize do
-                            table.insert(numberArray, i3)
+                        for i3 = 0, #array do
+                            table.insert(numberArray, tostring(i3))
                         end
-                        -- Array Index not working
-                        local array_index = 1
+                        local array_index = instruction.getValue
+                        if array_index == "" then
+                            array_index = 0
+                        end
                         changed, array_index = imgui.combo("Array Index " .. i .. "-" .. i1, array_index, numberArray)
                         instruction.getValue = array_index
                     end
