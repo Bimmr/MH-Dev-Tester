@@ -55,7 +55,9 @@ local calls = {{
 local function tooltip(text)
     imgui.same_line()
     imgui.text("(?)")
-    if imgui.is_item_hovered() then imgui.set_tooltip("  "..text.."  ") end
+    if imgui.is_item_hovered() then
+        imgui.set_tooltip("  " .. text .. "  ")
+    end
 end
 -- Stringify or dump the object to string
 local function stringify(obj)
@@ -111,34 +113,25 @@ local function performInstruction(instruction)
             elseif instruction.method_args and #instruction.method_args > 0 then -- With args
                 instruction.returnValue = lastReturnValue:call(instruction.method_get, instruction.method_args)
                 instruction.status = "Success - get with args"
-                
+
             else -- Without args
                 instruction.returnValue = lastReturnValue:call(instruction.method_get)
                 instruction.status = "Success - Get"
             end
-               
+
         elseif instruction.operation == "Set" then -- Set
 
             if instruction.method_set == nil or instruction.method_set == "" then -- Check if set method selected
                 instruction.status = "Failed - No set method selected"
-                
+
             elseif instruction.method_args ~= nil and #instruction.method_args == 0 then -- Make sure there is a value to set
                 instruction.status = "Failed - Missing args"
-               
+
             elseif instruction.method_start ~= true then -- Check if started setting
                 instruction.status = "Waiting - Not activated"
-                
-            elseif instruction.method_args and instruction.method_args ~= "" then -- With args
-                local args = {}
-                if #instruction.method_args == 1 then 
-                    lastReturnValue:call(instruction.method_set, args[1])
-                elseif #instruction.method_args == 2 then
-                    lastReturnValue:call(instruction.method_set, args[1], args[2])
-                elseif #instruction.method_args == 3 then
-                    lastReturnValue:call(instruction.method_set, args[1], args[2], args[3])
-                elseif #instruction.method_args == 4 then
-                    lastReturnValue:call(instruction.method_set, args[1], args[2], args[3], args[4])
-                end
+
+            elseif instruction.method_args and #instruction.method_args > 0 then -- With args
+                lastReturnValue:call(instruction.method_set, instruction.method_args)
                 instruction.status = "Success - Set with args"
             else -- Without args
                 lastReturnValue:call(instruction.method_set)
@@ -160,10 +153,10 @@ local function performInstruction(instruction)
 
             if instruction.field_set == nil or instruction.field_set == "" then -- Make sure there is a value to set
                 instruction.status = "Failed - No value to set"
-                
+
             elseif instruction.field_start ~= true then -- Check if started setting
                 instruction.status = "Waiting - Not activated"
-                   
+
             else
                 lastReturnValue:set_field(instruction.field_set, instruction.field_value) -- Set the field 
                 instruction.status = "Success - Set"
@@ -238,7 +231,6 @@ end
 local function drawCallMenu()
     local changed = false
     imgui.begin_window("Dev Menu - Calls", nil)
-
     -- Loop through calls
     for i, call in ipairs(calls) do
         if imgui.collapsing_header("Call #" .. i) then
@@ -277,7 +269,6 @@ local function drawCallMenu()
             imgui.spacing()
 
             imgui.indent(2)
-           
 
             -- Make sure calls are valid
             if call.type == 1 and call.path == "" then
@@ -355,7 +346,8 @@ local function drawCallMenu()
                             table.insert(method_list, method)
 
                             -- If the method name matches the one being used in the instruction, select it
-                            if (instruction.operation == "Get" and method:get_name() == instruction.method_get) or (instruction.operation == "Set" and method:get_name() == instruction.method_set) then
+                            if (instruction.operation == "Get" and method:get_name() == instruction.method_get) or
+                                (instruction.operation == "Set" and method:get_name() == instruction.method_set) then
                                 method_index = method_index + 2
                                 method_index_found = true
                             end
@@ -440,7 +432,8 @@ local function drawCallMenu()
                             table.insert(field_list, field)
 
                             -- If the field name matches the one being used in the instruction, select it
-                            if (instruction.operation == "Get" and field:get_name() == instruction.field_get) or (instruction.operation == "Set" and field:get_name() == instruction.field_set) then
+                            if (instruction.operation == "Get" and field:get_name() == instruction.field_get) or
+                                (instruction.operation == "Set" and field:get_name() == instruction.field_set) then
                                 field_index = field_index + 2
                                 field_index_found = true
                             end
@@ -473,15 +466,17 @@ local function drawCallMenu()
                         changed, instruction.field_start = imgui.checkbox("Activate" .. i .. "-" .. i1, instruction.field_start)
                     end
 
-                -- Handle ArrayIndex type instructions
+                    -- Handle ArrayIndex type instructions
                 elseif instruction.type == "ArrayIndex" then
 
                     local array = instruction.initValue
-                    local is_array = pcall(function() return #array end)
-                    if array ~= nil and is_array then 
+                    local is_array = pcall(function()
+                        return #array
+                    end)
+                    if array ~= nil and is_array then
 
                         local numberArray = {}
-                        for i3 = 0, #array-1 do
+                        for i3 = 0, #array - 1 do
                             table.insert(numberArray, tostring(i3))
                         end
                         local array_index = 0
@@ -492,14 +487,14 @@ local function drawCallMenu()
                         end
                         if array_index == nil or array_index == "" then
                             array_index = 0
-                        else 
+                        else
                             array_index = array_index + 1
                         end
                         changed, array_index = imgui.combo("Array Index " .. i .. "-" .. i1, array_index, numberArray)
                         if instruction.operation == "Set" then
-                            instruction.array_set = array_index-1
+                            instruction.array_set = array_index - 1
                         elseif instruction.operation == "Get" then
-                            instruction.array_get = array_index-1
+                            instruction.array_get = array_index - 1
                         end
 
                         if instruction.operation == "Set" then
