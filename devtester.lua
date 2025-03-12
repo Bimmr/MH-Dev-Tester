@@ -233,6 +233,8 @@ local function drawCallMenu()
     imgui.begin_window("Dev Menu - Calls", nil)
     -- Loop through calls
     for i, call in ipairs(calls) do
+        
+        imgui.push_id(i)
         if imgui.collapsing_header("Call #" .. i) then
             imgui.indent(10)
             imgui.spacing()
@@ -240,9 +242,9 @@ local function drawCallMenu()
             if call.isHooked then
                 imgui.text("[Hooked]")
             else
-                changed, call.type = imgui.combo("Type " .. i, call.type, {"Singleton", "Hook"})
+                changed, call.type = imgui.combo("Type", call.type, {"Singleton", "Hook"})
             end
-            changed, call.path = imgui.input_text("Path " .. i, call.path)
+            changed, call.path = imgui.input_text("Path", call.path)
             if call.type == 2 then
                 if not call.isHooked then
                     imgui.same_line()
@@ -254,9 +256,9 @@ local function drawCallMenu()
                     end
                 end
 
-                changed, call.method = imgui.input_text("Method " .. i, call.method)
-                changed, call.time = imgui.combo("Time " .. i, call.time, {"Pre", "Post"})
-                changed, call.prehook = imgui.combo("PreHookResult " .. i, call.prehook, {"CALL_ORIGINAL", "SKIP_ORIGINAL"})
+                changed, call.method = imgui.input_text("Method", call.method)
+                changed, call.time = imgui.combo("Time", call.time, {"Pre", "Post"})
+                changed, call.prehook = imgui.combo("PreHookResult", call.prehook, {"CALL_ORIGINAL", "SKIP_ORIGINAL"})
             end
             local path = sdk.find_type_definition(call.path)
 
@@ -280,6 +282,7 @@ local function drawCallMenu()
 
             -- Loop through instructions
             for i1, instruction in ipairs(call.instructions) do
+                imgui.push_id(i.."-"..i1)
                 if i1 == 1 then
                     if call.type == 1 then
                         print("Singleton " .. i .. stringify(call))
@@ -304,13 +307,13 @@ local function drawCallMenu()
                 -- Draw the instruction type combo box
                 local typeOptions = {"Method", "Field", "ArrayIndex"}
                 local instruction_index = instruction.type == "ArrayIndex" and 3 or instruction.type == "Field" and 2 or 1
-                changed, instruction_index = imgui.combo("Type " .. i .. "-" .. i1, instruction_index, typeOptions)
+                changed, instruction_index = imgui.combo("Type", instruction_index, typeOptions)
                 instruction.type = typeOptions[instruction_index]
 
                 -- Draw the operation combo box
                 local operationOptions = {"Get", "Set"}
                 local operation_index = instruction.operation == "Set" and 2 or 1
-                changed, operation_index = imgui.combo("Operation " .. i .. "-" .. i1, operation_index, operationOptions)
+                changed, operation_index = imgui.combo("Operation", operation_index, operationOptions)
                 instruction.operation = operationOptions[operation_index]
 
                 -- Handle Method type instructions
@@ -364,7 +367,7 @@ local function drawCallMenu()
                         method_index = 0
                     end
 
-                    changed, method_index = imgui.combo("Method Name " .. i .. "-" .. i1, method_index, method_list_names)
+                    changed, method_index = imgui.combo("Method Name", method_index, method_list_names)
                     if changed and method_list[method_index] ~= "" then
                         if instruction.operation == "Get" then
                             instruction.method_get = method_list[method_index]:get_name()
@@ -376,7 +379,7 @@ local function drawCallMenu()
                     -- If the operation is set, draw the activate button
                     if instruction.operation == "Set" then
                         imgui.same_line()
-                        changed, instruction.method_start = imgui.checkbox("Activate" .. i .. "-" .. i1, instruction.method_start)
+                        changed, instruction.method_start = imgui.checkbox("Activate", instruction.method_start)
                     end
 
                     -- Add args if needed
@@ -396,7 +399,7 @@ local function drawCallMenu()
                                     instruction.method_args[i2] = ""
                                 end
                                 local type = method:get_param_types()[i2]:get_name()
-                                changed, instruction.method_args[i2] = imgui.input_text("(" .. type .. ") Method Args " .. i .. "-" .. i1 .. i2, instruction.method_args[i2]) -- Not being added?
+                                changed, instruction.method_args[i2] = imgui.input_text("(" .. type .. ") Method Args ".. i2, instruction.method_args[i2]) -- Not being added?
                             end
                         end
 
@@ -450,7 +453,7 @@ local function drawCallMenu()
                         field_index = 0
                     end
 
-                    changed, field_index = imgui.combo("Field Name " .. i .. "-" .. i1, field_index, field_list_names)
+                    changed, field_index = imgui.combo("Field Name", field_index, field_list_names)
                     if changed and field_list[field_index] ~= "" then
                         if instruction.operation == "Get" then
                             instruction.field_get = field_list[field_index]:get_name()
@@ -461,9 +464,9 @@ local function drawCallMenu()
 
                     -- Draw the set value input
                     if instruction.operation == "Set" then
-                        changed, instruction.field_value = imgui.input_text("Set Value " .. i .. "-" .. i1, instruction.field_value)
+                        changed, instruction.field_value = imgui.input_text("Set Value", instruction.field_value)
                         imgui.same_line()
-                        changed, instruction.field_start = imgui.checkbox("Activate" .. i .. "-" .. i1, instruction.field_start)
+                        changed, instruction.field_start = imgui.checkbox("Activate", instruction.field_start)
                     end
 
                     -- Handle ArrayIndex type instructions
@@ -490,7 +493,7 @@ local function drawCallMenu()
                         else
                             array_index = array_index + 1
                         end
-                        changed, array_index = imgui.combo("Array Index " .. i .. "-" .. i1, array_index, numberArray)
+                        changed, array_index = imgui.combo("Array Index", array_index, numberArray)
                         if instruction.operation == "Set" then
                             instruction.array_set = array_index - 1
                         elseif instruction.operation == "Get" then
@@ -498,9 +501,9 @@ local function drawCallMenu()
                         end
 
                         if instruction.operation == "Set" then
-                            changed, instruction.array_value = imgui.input_text("Set Value " .. i .. "-" .. i1, instruction.array_value)
+                            changed, instruction.array_value = imgui.input_text("Set Value", instruction.array_value)
                             imgui.same_line()
-                            changed, instruction.array_start = imgui.checkbox("Activate" .. i .. "-" .. i1, instruction.array_start)
+                            changed, instruction.array_start = imgui.checkbox("Activate", instruction.array_start)
                         end
                     else
                         instruction.status = "Failed - Not an array"
@@ -512,12 +515,12 @@ local function drawCallMenu()
                 -- Draw the status and value
                 if instruction.returnValue ~= nil and instruction.operation ~= "Set" then
                     imgui.begin_disabled()
-                    imgui.input_text("Returned Value " .. i .. "-" .. i1, stringify(instruction.returnValue), 16384)
+                    imgui.input_text("Returned Value", stringify(instruction.returnValue), 16384)
                     imgui.end_disabled()
                     tooltip(instruction.status)
                 else
                     imgui.begin_disabled()
-                    imgui.input_text("Status " .. i .. "-" .. i1, instruction.status, 16384)
+                    imgui.input_text("Status", instruction.status, 16384)
                     imgui.end_disabled()
                 end
 
@@ -542,6 +545,7 @@ local function drawCallMenu()
                     instruction.status = "Failed - No type definition"
                     instruction.returnValue = nil
                 end
+                imgui.pop_id()
             end
             local disable_add_instruction_button, disable_remove_instruction_button = false, false
             if call.instructions and #call.instructions > 0 then
@@ -586,6 +590,7 @@ local function drawCallMenu()
             imgui.unindent(12)
 
         end
+    imgui.pop_id()
     end
     imgui.separator()
     imgui.spacing()
