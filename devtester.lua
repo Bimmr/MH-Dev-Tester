@@ -349,10 +349,11 @@ local function drawCallMenu()
                             table.insert(method_list, method)
 
                             -- If the method name matches the one being used in the instruction, select it
-                            if (instruction.operation == "Get" and method:get_name() == instruction.method_get) or
-                                (instruction.operation == "Set" and method:get_name() == instruction.method_set) then
-                                method_index = method_index + 2
-                                method_index_found = true
+                            if (instruction.operation == "Get" and method:get_name() == instruction.method_get) or (instruction.operation == "Set" and method:get_name() == instruction.method_set) then
+                                if (method:get_num_params() == 0 and instruction.method_args == nil) or (instruction.method_args ~= nil and method:get_num_params() == #instruction.method_args) then
+                                    method_index = method_index + 2
+                                    method_index_found = true
+                                end
                             end
                         end
 
