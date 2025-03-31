@@ -1,56 +1,41 @@
-local calls = {{
-    path = "app.PlayerManager",
-    type = 1,
-    instructions = {{
-        type = "Method",
-        operation = "Get",
-        method_get = "getMasterPlayerInfo"
-    }, {
-        type = "Field",
-        operation = "Get",
-        field_get = "<Character>k__BackingField"
-    }, {
-        type = "Method",
-        operation = "Get",
-        method_get = "get_WeaponHandling"
-    }}
-}, {
-    path = "app.PlayerManager",
-    type = 1,
-    instructions = {{
-        type = "Method",
-        operation = "Get",
-        method_get = "getMasterPlayerInfo"
-    }, {
-        type = "Field",
-        operation = "Get",
-        field_get = "<Character>k__BackingField"
-    }, {
-        type = "Method",
-        operation = "Get",
-        method_get = "get_WeaponHandling"
-    }, {
-        type = "Field",
-        operation = "Get",
-        field_get = "_Ammos"
-    }, {
-        type = "ArrayIndex",
-        operation = "Get",
-        array_get = "0"
-    }}
-}, {
-    path = "app.cHunterStatus",
-    type = 2,
-    method = "update",
-    time = 1,
-    prehook = 2,
-    instructions = {{
-        type = "",
-        operation = "",
-        getValue = "",
-        setValue = ""
-    }}
-}}
+local Node = require("DevTester.Node")
+local Starter = require("DevTester.Starter")
+local Config = require("DevTester.Config")
+local HybridCombo = require("DevTester.HybridCombo")
+
+local re = re
+local imgui = imgui
+local imnodes = imnodes
+local json = json
+local sdk = sdk
+local table = table
+
+local NODE_WIDTH = 300
+
+local starters = {}
+
+local node_count = 0
+local link_count = 0
+local connecter_count = 0
+
+local nodes_moved = {}
+
+-- Increase the node count and return the new count
+local function nextNodeCount()
+    node_count = node_count + 1
+    return node_count
+end
+-- Increase the link count and return the new count
+local function nextLinkCount()
+    link_count = link_count + 1
+    return link_count
+end
+-- Increase the connecter count and return the new count
+local function nextConnecterCount()
+    connecter_count = connecter_count + 1
+    return connecter_count
+end
+
 -- Draw the tooltip
 local function tooltip(text)
     imgui.same_line()
@@ -59,560 +44,503 @@ local function tooltip(text)
         imgui.set_tooltip("  " .. text .. "  ")
     end
 end
--- Stringify or dump the object to string
-local function stringify(obj)
-    if type(obj) == "table" then
-        obj = json.dump_string(obj)
-    else
-        obj = tostring(obj)
+
+-- Save the data to the config file
+local function save(name)
+    if name == nil then
+        name = "DevTester"
     end
-    return obj
-end
-
-
--- Get the type definition of the instruction at index
-local function getInitTypeDefinition(call, index)
-    return getInitTypeDefinition(call.instructions[index])
-end
-
--- Get the return type definition of the instruction
-local function getInitTypeDefinition(instruction)
-    local test, typeDefinition = pcall(function()
-        return instruction.initValue:get_type_definition()
-    end)
-    if not test then
-        return nil
-    end
-    return typeDefinition
-end
-
--- Get the return type definition of the instruction
-local function getReturnTypeDefinition(instruction)
-    local test, typeDefinition = pcall(function()
-        return instruction.returnValue:get_type_definition()
-    end)
-    if not test then
-        return nil
-    end
-    return typeDefinition
-end
-
--- Perform the instructions
-local function performInstruction(instruction)
-    local lastReturnValue = instruction.initValue
-
-    -- Handle Method type instructions
-    if instruction.type == "Method" then
-
-        -- Get
-        if instruction.operation == "Get" then
-
-            if instruction.method_get == nil or instruction.method_get == "" then -- Make sure there is a value to get
-                instruction.status = "Failed - No get method selected"
-
-            elseif instruction.method_args and #instruction.method_args > 0 then -- With args
-                instruction.returnValue = lastReturnValue:call(instruction.method_get, instruction.method_args)
-                instruction.status = "Success - get with args"
-
-            else -- Without args
-                instruction.returnValue = lastReturnValue:call(instruction.method_get)
-                instruction.status = "Success - Get"
-            end
-
-        elseif instruction.operation == "Set" then -- Set
-
-            if instruction.method_set == nil or instruction.method_set == "" then -- Check if set method selected
-                instruction.status = "Failed - No set method selected"
-
-            elseif instruction.method_args ~= nil and #instruction.method_args == 0 then -- Make sure there is a value to set
-                instruction.status = "Failed - Missing args"
-
-            elseif instruction.method_start ~= true then -- Check if started setting
-                instruction.status = "Waiting - Not activated"
-
-            elseif instruction.method_args and #instruction.method_args > 0 then -- With args
-                lastReturnValue:call(instruction.method_set, instruction.method_args)
-                instruction.status = "Success - Set with args"
-            else -- Without args
-                lastReturnValue:call(instruction.method_set)
-                instruction.status = "Success - Set"
-            end
-        end
-
-        -- Handle Field type instructions
-    elseif instruction.type == "Field" then
-        if instruction.operation == "Get" then
-
-            if instruction.field_get == nil or instruction.field_get == "" then -- Check if field selected
-                instruction.status = "Failed - No get field selected"
-            else
-                instruction.returnValue = lastReturnValue:get_field(instruction.field_get)
-                instruction.status = "Success - Get"
-            end
-        elseif instruction.operation == "Set" then
-
-            if instruction.field_set == nil or instruction.field_set == "" then -- Make sure there is a value to set
-                instruction.status = "Failed - No value to set"
-
-            elseif instruction.field_start ~= true then -- Check if started setting
-                instruction.status = "Waiting - Not activated"
-
-            else
-                lastReturnValue:set_field(instruction.field_set, instruction.field_value) -- Set the field 
-                instruction.status = "Success - Set"
-            end
-        end
-
-        -- Handle ArrayIndex type instructions
-    elseif instruction.type == "ArrayIndex" then
-        if instruction.operation == "Get" then
-            instruction.returnValue = lastReturnValue[tonumber(instruction.array_get)]
-            instruction.status = "Success - Get"
-        elseif instruction.operation == "Set" then
-
-            if instruction.array_start ~= true then -- Check if started setting
-                instruction.status = "Waiting - Not activated"
-            else
-                lastReturnValue[tonumber(instruction.array_set)] = instruction.array_value
-                instruction.status = "Success - Set"
-            end
-        end
-    end
-
-    return instruction
-end
-
--- Init Hooks
-local function initHook(hook)
-
-    local path = sdk.find_type_definition(hook.path)
-    if not path then
-        hook.status = "Path not found"
-        hook.isHooked = false
+    if starters == nil or starters == {} then
         return
     end
-    path = path:get_method(hook.method)
-    if not path then
-        hook.status = "Method not found"
-        hook.isHooked = false
+    local data = {
+        node_count = node_count,
+        link_count = link_count,
+        connecter_count = connecter_count,
+        starters = starters
+    }
+    Config.saveConfig(name, data)
+    re.msg("Saved config to " .. name)
+end
+
+-- Load the data from the config file
+local function load(name)
+    if name == nil then
+        name = "DevTester"
+    end
+    local file = Config.getConfig(name)
+    if file == nil or file == {} then
         return
     end
 
-    -- Initialize the hook
-    sdk.hook(path, function(args)
-        local managed = sdk.to_managed_object(args[2])
-        if not managed then
-            return
-        end
-        if not managed:get_type_definition():is_a(hook.path) then
-            return
-        end
+    local function addChild(parent, data)
+        local child = Node:new()
+        child.operation = data.operation
+        child.type = data.type
+        child.method_index = data.method_index
+        child.method_index_group = data.method_index_group
+        child.method_combo = data.method_combo
+        child.method_args = data.method_args
+        child.field_index = data.field_index
+        child.field_setValue = data.field_setValue
+        child.field_index_group = data.field_index_group
+        child.field_combo = data.field_combo
+        child.status = data.status
+        child.array_index = data.array_index
+        child.array_setValue = data.array_setValue
+        child.call_active = data.call_active or false
+        child.set_active = data.set_active or false
+        child.parent_is_starter = data.parent_is_starter or false
+        child.ignore_reset_on_value_change = true
+        child.node_id = data.node_id
+        child.node_pos = data.node_pos
+        child.input_attr = data.input_attr
+        child.output_attr = data.output_attr
 
-        if hook.time == 1 then
-            hook.instructions[1].initValue = managed
-        else
-            hook.managed = managed
-        end
+        parent:addChild(child)
 
-        if hook.prehook == 2 then
-            return sdk.PreHookResult.SKIP_ORIGINAL
-        end
-    end, function(retval)
-        if hook.managed then
-            hook.managed = nil
-            if hook.time == 2 then
-                hook.instructions[1].initValue = retval
+        if data.children ~= nil then
+            for _, child_data in ipairs(data.children) do
+                addChild(child, child_data)
             end
         end
-        return retval
-    end)
+    end
+
+    for i, starter in ipairs(file.starters) do
+        local new_starter = Starter:new()
+        new_starter.path = starter.path
+        new_starter.type = starter.type
+        new_starter.hook_methodName = starter.hook_methodName
+        new_starter.hook_timing = starter.hook_timing
+        new_starter.hook_active = starter.hook_active
+        new_starter.node_id = starter.node_id
+        new_starter.node_pos = starter.node_pos
+        new_starter.output_attr = starter.output_attr
+        if starter.children then
+            for _, child_data in ipairs(starter.children) do
+                addChild(new_starter, child_data)
+            end
+        end
+
+        table.insert(starters, new_starter)
+    end
+    node_count = file.node_count
+    link_count = file.link_count
+    connecter_count = file.connecter_count
+
 end
 
-local function drawCallMenu()
-    local changed = false
-    imgui.begin_window("Dev Menu - Calls", nil)
-    -- Loop through calls
-    for i, call in ipairs(calls) do
-        
-        imgui.push_id(i)
-        if imgui.collapsing_header("Call #" .. i) then
-            imgui.indent(10)
-            imgui.spacing()
-
-            if call.isHooked then
-                imgui.text("[Hooked]")
-            else
-                changed, call.type = imgui.combo("Type", call.type, {"Singleton", "Hook"})
-            end
-            changed, call.path = imgui.input_text("Path", call.path)
-            if call.type == 2 then
-                if not call.isHooked then
-                    imgui.same_line()
-                    imgui.text("  ")
-                    imgui.same_line()
-                    if imgui.button("[Create Hook]") then
-                        call.isHooked = true
-                        initHook(call)
-                    end
-                end
-
-                changed, call.method = imgui.input_text("Method", call.method)
-                changed, call.time = imgui.combo("Time", call.time, {"Pre", "Post"})
-                changed, call.prehook = imgui.combo("PreHookResult", call.prehook, {"CALL_ORIGINAL", "SKIP_ORIGINAL"})
-            end
-            local path = sdk.find_type_definition(call.path)
-
-            print("\n----------\n")
-            if call.type == 1 then
-                call.initValue = sdk.get_managed_singleton(call.path)
-            end
-
-            imgui.spacing()
-            imgui.spacing()
-
-            imgui.indent(2)
-
-            -- Make sure calls are valid
-            if call.type == 1 and call.path == "" then
-                break
-            end
-            if call.type == 2 and (call.path == "" or call.method == "") then
-                break
-            end
-
-            -- Loop through instructions
-            for i1, instruction in ipairs(call.instructions) do
-                imgui.push_id(i.."-"..i1)
-                if i1 == 1 then
-                    if call.type == 1 then
-                        print("Singleton " .. i .. stringify(call))
-                        call.instructions[1].initValue = call.initValue
-                    elseif call.type == 2 then
-                        print("Hook " .. i .. stringify(call))
-                    end
-                end
-
-                -- If an instruction says to use a different instruction's return value, set it
-                -- if instruction.use ~= nil then
-                --     instruction.initValue = call.instructions[instruction.use].returnValue
-                -- end
-
-                -- Get the type definition of the instruction
-                local starting_def = getInitTypeDefinition(instruction)
-
-                print("-- Instruction " .. i .. "-" .. i1 .. ": " .. stringify(instruction) .. " " .. stringify(instruction.returnValue))
-                imgui.spacing()
-                imgui.begin_rect()
-
-                -- Draw the instruction type combo box
-                local typeOptions = {"Method", "Field", "ArrayIndex"}
-                local instruction_index = instruction.type == "ArrayIndex" and 3 or instruction.type == "Field" and 2 or 1
-                changed, instruction_index = imgui.combo("Type", instruction_index, typeOptions)
-                instruction.type = typeOptions[instruction_index]
-
-                -- Draw the operation combo box
-                local operationOptions = {"Get", "Set"}
-                local operation_index = instruction.operation == "Set" and 2 or 1
-                changed, operation_index = imgui.combo("Operation", operation_index, operationOptions)
-                instruction.operation = operationOptions[operation_index]
-
-                -- Handle Method type instructions
-                if instruction.type == "Method" then
-
-                    local method_index = 0
-                    local method_index_found = false
-                    local method_list = {""}
-
-                    local method_list_names = {""}
-                    local definition = getInitTypeDefinition(instruction)
-                    local depth_prefix = ""
-
-                    -- Drill down through the type definitions to get the methods
-                    while definition ~= nil do
-                        local methods = definition:get_methods()
-                        table.insert(method_list_names, "\n" .. "[" .. definition:get_name() .. "]")
-                        table.insert(method_list, "")
-
-                        -- Loop through the methods and add them to the list
-                        for _, method in ipairs(methods) do
-                            if not method_index_found then
-                                method_index = method_index + 1
-                            end
-                            local params = ""
-                            for i2 = 1, method:get_num_params() do
-                                params = params .. method:get_param_types()[i2]:get_name()
-                                if i2 < method:get_num_params() then
-                                    params = params .. ", "
-                                end
-                            end
-                            table.insert(method_list_names, method:get_name() .. "(" .. params .. ")  |  " .. method:get_return_type():get_full_name())
-                            table.insert(method_list, method)
-
-                            -- If the method name matches the one being used in the instruction, select it
-                            if (instruction.operation == "Get" and method:get_name() == instruction.method_get) or (instruction.operation == "Set" and method:get_name() == instruction.method_set) then
-                                if (method:get_num_params() == 0 and instruction.method_args == nil) or (instruction.method_args ~= nil and method:get_num_params() == #instruction.method_args) then
-                                    method_index = method_index + 2
-                                    method_index_found = true
-                                end
-                            end
-                        end
-
-                        -- If not found, increase the index
-                        if not method_index_found then
-                            method_index = method_index + 1
-                        end
-                        definition = definition:get_parent_type()
-                    end
-                    -- If still not found, set the index to 0
-                    if not method_index_found then
-                        method_index = 0
-                    end
-
-                    changed, method_index = imgui.combo("Method Name", method_index, method_list_names)
-                    if changed and method_list[method_index] ~= "" then
-                        if instruction.operation == "Get" then
-                            instruction.method_get = method_list[method_index]:get_name()
-                        else
-                            instruction.method_set = method_list[method_index]:get_name()
-                        end
-                    end
-
-                    -- If the operation is set, draw the activate button
-                    if instruction.operation == "Set" then
-                        imgui.same_line()
-                        changed, instruction.method_start = imgui.checkbox("Activate", instruction.method_start)
-                    end
-
-                    -- Add args if needed
-                    if starting_def and method_list[method_index] ~= "" then
-
-                        local method = method_list[method_index]
-                        if method:get_num_params() == 0 then -- no args, remove args from instruction
-                            instruction.method_args = nil
-                        elseif method:get_num_params() > 0 then -- has args
-                            if instruction.method_args == nil then -- Instruction args hasn't been assigned yet
-                                instruction.method_args = {}
-                            end
-
-                            -- Add empty args for the array if they don't exist
-                            for i2 = 1, method:get_num_params() do
-                                if instruction.method_args[i2] == nil then
-                                    instruction.method_args[i2] = ""
-                                end
-                                local type = method:get_param_types()[i2]:get_name()
-                                changed, instruction.method_args[i2] = imgui.input_text("(" .. type .. ") Method Args ".. i2, instruction.method_args[i2]) -- Not being added?
-                            end
-                        end
-
-                        -- Remove extra args
-                        if instruction.method_args and #instruction.method_args > method:get_num_params() then
-                            for i2 = method:get_num_params() + 1, #instruction.method_args do
-                                instruction.method_args[i2] = nil
-                            end
-                        end
-                    end
-
-                    -- Handle Field type instructions
-                elseif instruction.type == "Field" then
-
-                    local field_index = 0
-                    local field_index_found = false
-                    local field_list = {""}
-                    local field_list_names = {""}
-                    local definition = getInitTypeDefinition(instruction)
-
-                    -- Drill down through the type definitions to get the fields
-                    while definition ~= nil do
-                        local fields = definition:get_fields()
-                        table.insert(field_list_names, "\n" .. "[" .. definition:get_name() .. "]")
-                        table.insert(field_list, "")
-
-                        -- Loop through the fields and add them to the list
-                        for _, field in ipairs(fields) do
-                            if not field_index_found then
-                                field_index = field_index + 1
-                            end
-                            table.insert(field_list_names, field:get_name() .. "  |  " .. field:get_type():get_full_name())
-                            table.insert(field_list, field)
-
-                            -- If the field name matches the one being used in the instruction, select it
-                            if (instruction.operation == "Get" and field:get_name() == instruction.field_get) or
-                                (instruction.operation == "Set" and field:get_name() == instruction.field_set) then
-                                field_index = field_index + 2
-                                field_index_found = true
-                            end
-                        end
-
-                        -- If not found, increase the index
-                        if not field_index_found then
-                            field_index = field_index + 1
-                        end
-                        definition = definition:get_parent_type()
-                    end
-                    -- If still not found, set the index to 0
-                    if not field_index_found then
-                        field_index = 0
-                    end
-
-                    changed, field_index = imgui.combo("Field Name", field_index, field_list_names)
-                    if changed and field_list[field_index] ~= "" then
-                        if instruction.operation == "Get" then
-                            instruction.field_get = field_list[field_index]:get_name()
-                        else
-                            instruction.field_set = field_list[field_index]:get_name()
-                        end
-                    end
-
-                    -- Draw the set value input
-                    if instruction.operation == "Set" then
-                        changed, instruction.field_value = imgui.input_text("Set Value", instruction.field_value)
-                        imgui.same_line()
-                        changed, instruction.field_start = imgui.checkbox("Activate", instruction.field_start)
-                    end
-
-                    -- Handle ArrayIndex type instructions
-                elseif instruction.type == "ArrayIndex" then
-
-                    local array = instruction.initValue
-                    local is_array = pcall(function()
-                        return #array
-                    end)
-                    if array ~= nil and is_array then
-
-                        local numberArray = {}
-                        for i3 = 0, #array - 1 do
-                            table.insert(numberArray, tostring(i3))
-                        end
-                        local array_index = 0
-                        if instruction.operation == "Set" then
-                            array_index = instruction.array_set
-                        elseif instruction.operation == "Get" then
-                            array_index = instruction.array_get
-                        end
-                        if array_index == nil or array_index == "" then
-                            array_index = 0
-                        else
-                            array_index = array_index + 1
-                        end
-                        changed, array_index = imgui.combo("Array Index", array_index, numberArray)
-                        if instruction.operation == "Set" then
-                            instruction.array_set = array_index - 1
-                        elseif instruction.operation == "Get" then
-                            instruction.array_get = array_index - 1
-                        end
-
-                        if instruction.operation == "Set" then
-                            changed, instruction.array_value = imgui.input_text("Set Value", instruction.array_value)
-                            imgui.same_line()
-                            changed, instruction.array_start = imgui.checkbox("Activate", instruction.array_start)
-                        end
-                    else
-                        instruction.status = "Failed - Not an array"
-                        instruction.returnValue = nil
-                    end
-
-                end
-
-                -- Draw the status and value
-                if instruction.returnValue ~= nil and instruction.operation ~= "Set" then
-                    imgui.begin_disabled()
-                    imgui.input_text("Returned Value", stringify(instruction.returnValue), 16384)
-                    imgui.end_disabled()
-                    tooltip(instruction.status)
-                else
-                    imgui.begin_disabled()
-                    imgui.input_text("Status", instruction.status, 16384)
-                    imgui.end_disabled()
-                end
-
-                imgui.spacing()
-                imgui.end_rect(5, 1)
-                imgui.spacing()
-                imgui.spacing()
-
-                -- Perform the instruction
-                if starting_def then
-                    performInstruction(instruction)
-                    if i1 < #call.instructions then
-
-                        -- If setting, pass the inital value back to the next instruction to chain them
-                        if instruction.operation == "Set" then
-                            call.instructions[i1 + 1].initValue = instruction.initValue
-                        else
-                            call.instructions[i1 + 1].initValue = instruction.returnValue
-                        end
-                    end
-                else
-                    instruction.status = "Failed - No type definition"
-                    instruction.returnValue = nil
-                end
-                imgui.pop_id()
-            end
-            local disable_add_instruction_button, disable_remove_instruction_button = false, false
-            if call.instructions and #call.instructions > 0 then
-                local last_instruction = call.instructions[#call.instructions]
-                local return_def = getReturnTypeDefinition(last_instruction)
-                if not return_def and last_instruction.operation == "Get" then
-                    disable_add_instruction_button = true
-                end
-            elseif not call.instructions or #call.instructions == 0 then
-                disable_remove_instruction_button = true
-            end
-
-            if disable_add_instruction_button then
-                imgui.begin_disabled()
-            end
-            if imgui.button("Add New Instruction") then
-                table.insert(call.instructions, {
-                    type = "",
-                    operation = "",
-                    getValue = "",
-                    setValue = ""
-                })
-            end
-            if disable_add_instruction_button then
-                imgui.end_disabled()
-            end
-
-            imgui.same_line()
-            if disable_remove_instruction_button then
-                imgui.begin_disabled()
-            end
-            if imgui.button("Remove Last Instruction") then
-                table.remove(call.instructions, #call.instructions)
-            end
-            if disable_remove_instruction_button then
-                imgui.end_disabled()
-            end
-            imgui.spacing()
-            imgui.spacing()
-            imgui.spacing()
-            imgui.spacing()
-            imgui.unindent(12)
-
-        end
-    imgui.pop_id()
-    end
-    imgui.separator()
-    imgui.spacing()
-    if imgui.button("Add New Call") then
-        table.insert(calls, {
-            path = "",
-            instructions = {{
-                type = "",
-                operation = "",
-                getValue = "",
-                setValue = ""
-            }}
-        })
-    end
-    imgui.same_line()
-    if imgui.button("Remove Last Call") then
-        table.remove(calls, #calls)
-    end
-    imgui.end_window()
+-- Reset the node and link counts
+local function reset()
+    starters = {}
+    node_count = 0
+    link_count = 0
+    connecter_count = 0
+    nodes_moved = {}
 end
 
+local window_open = false
+local file_save_name = "DevTester"
+local file_load_combo_index = 0
 re.on_draw_ui(function()
-    drawCallMenu()
+    if imgui.button("DevTester") then
+        window_open = not window_open
+    end
+
+    if window_open then
+
+        imgui.push_style_var(3, 7.5) -- Rounded window
+        imgui.push_style_var(12, 5.0) -- Rounded elements
+        imgui.push_style_var(11, Vector2f.new(5, 5)) -- Extra padding
+
+        window_open = imgui.begin_window("[Dev Tester]", window_open, 1024)
+
+        imgui.push_style_var(2, Vector2f.new(5, 5)) -- Extra padding on menu bar
+        if imgui.begin_menu_bar() then
+            if imgui.begin_menu("File") then
+                if imgui.begin_menu("Save", nil, false) then
+                    imgui.spacing()
+                    imgui.text("Enter a save name:")
+                    local changed = false
+                    changed, file_save_name = imgui.input_text("File Name", file_save_name)
+                    if imgui.button("Save") then
+                        save(file_save_name)
+                    end
+                    imgui.spacing()
+                    imgui.end_menu()
+                end
+                if imgui.begin_menu("Load", nil, false) then
+                    imgui.spacing()
+                    imgui.text("Select a file to load:")
+                    local files = Config.getAllConfigs()
+                    local file_names = {}
+                    for name, _ in pairs(files) do
+                        table.insert(file_names, name)
+                    end
+                    local changed = false
+                    changed, file_load_combo_index = imgui.combo("Files", file_load_combo_index, file_names)
+                    if imgui.button("Load") then
+                        local file_name = file_names[file_load_combo_index]
+                        if file_name ~= nil then
+                            reset()
+                            load(file_name)
+                            file_save_name = file_name
+                        end
+                    end
+
+                    imgui.spacing()
+                    imgui.end_menu()
+                end
+                imgui.end_menu()
+            end
+            if imgui.menu_item("Clear Nodes") then
+                reset()
+            end
+            if imgui.menu_item("+ Create Starter") then
+                local starter = Starter:new()
+                table.insert(starters, starter)
+            end
+
+            imgui.end_menu_bar()
+        end
+
+        imgui.pop_style_var()
+        imnodes.begin_node_editor()
+        imgui.push_item_width(NODE_WIDTH)
+
+        imgui.push_style_color(21, 0xFF714A29) -- AABBGGRR (Button Colour)
+        imgui.push_style_color(22, 0xFFFA9642) -- AABBGGRR (Button Hover Colour)
+        imnodes.push_color_style(1, 0xFF3C3C3C) -- AABBGGRR (Hover Background Colour)
+        imnodes.push_color_style(2, 0xFF3C3C3C) -- AABBGGRR (Selected Background Colour)
+
+        -- Draw the starter nodes
+        for i, starter in ipairs(starters) do
+
+            -- Draw the starter node
+            local changed, type_index
+
+            -- Draw the starter
+            if starter.node_id == nil then
+                starter.node_id = nextNodeCount()
+            end
+            imnodes.begin_node(starter.node_id)
+
+            -- Draw starter controls
+            imnodes.begin_node_titlebar()
+            changed, starter.type = imgui.combo("Type", starter.type, {"Managed", "Hook"})
+            imnodes.end_node_titlebar()
+            changed, starter.path = imgui.input_text("Path", starter.path)
+
+            if starter.type == Starter._TYPE.HOOK then
+                changed, starter.hook_methodName = imgui.input_text("Method Name", starter.hook_methodName)
+                changed, starter.hook_timing = imgui.combo("Hook Timing", starter.hook_timing, {"Pre", "Post"})
+
+                if starter:isHookActive() then
+                    imgui.begin_disabled()
+                    changed, starter.hook_active = imgui.checkbox("Active", starter.hook_active)
+                    imgui.end_disabled()
+                else
+                    if imgui.button("Initalize hook") then
+                        starter:startHook()
+                    end
+                end
+            end
+
+            imgui.spacing()
+            imgui.spacing()
+            imgui.spacing()
+
+            -- Run the starter
+            starter:run()
+
+            local can_continue = false
+            if starter.ending_value ~= nil then
+                can_continue = type(starter.ending_value) == "userdata"
+            end
+
+            local output = starter.status
+            if can_continue then
+
+                -- Create starter output attribute
+                starter.output_attr = starter.output_attr or nextConnecterCount()
+                imnodes.begin_output_attribute(starter.output_attr)
+
+                if starter.ending_value ~= nil then
+                    output = starter.ending_value:get_type_definition():get_name()
+                end
+                local output_pos = imgui.get_cursor_pos()
+                output_pos.x = output_pos.x + NODE_WIDTH - imgui.calc_text_size(output).x + 30
+                imgui.set_cursor_pos(output_pos)
+                imgui.text(output)
+                imnodes.end_output_attribute()
+
+                imgui.spacing()
+                imgui.spacing()
+                imgui.spacing()
+            end
+
+            local new_node_pos = imgui.get_cursor_pos()
+            if imgui.button("- Remove Node") then
+                table.remove(starters, i)
+            end
+
+            if can_continue then
+                imgui.same_line()
+                new_node_pos.x = new_node_pos.x + NODE_WIDTH - imgui.calc_text_size("+ Create Node").x + 30
+                imgui.set_cursor_pos(new_node_pos)
+                if imgui.button("+ Create Node") then
+                    starter:addChild(Node:new())
+                end
+
+            end
+            imnodes.end_node()
+            if not nodes_moved[starter.node_id] then
+                if starter.node_pos then
+                    imnodes.set_node_editor_space_pos(starter.node_id, starter.node_pos.x, starter.node_pos.y)
+                end
+                nodes_moved[starter.node_id] = true
+            end
+            if not starter.node_pos then
+                starter.node_pos = {}
+            end
+            local pos = imnodes.get_node_editor_space_pos(starter.node_id)
+            starter.node_pos = {
+                x = pos.x,
+                y = pos.y
+            }
+
+            -- Draw the node and setup the link
+            local function drawNode(node)
+
+                if node.node_id == nil then
+                    node.node_id = nextNodeCount()
+                end
+
+                imgui.push_id(node.node_id)
+                imnodes.begin_node(node.node_id)
+
+                -- Create the input attribute
+                if not node.input_attr then
+                    node.input_attr = nextConnecterCount()
+                end
+
+                -- Create the node title bar
+                imnodes.begin_node_titlebar()
+                imnodes.begin_input_attribute(node.input_attr)
+                imgui.text(node.starting_value and node.starting_value:get_type_definition():get_full_name() or "Input")
+                imnodes.end_input_attribute()
+                imnodes.end_node_titlebar()
+
+                imgui.spacing()
+                imgui.spacing()
+                imgui.spacing()
+
+                -- Display the node controls
+                changed, node.operation = imgui.combo("Operation", node.operation, {"Method", "Field", "ArrayIndex"})
+                local types = {"Get", "Set", "Call"}
+
+                -- Remove the "Call" option if not a method
+                if node.operation ~= Node._OPERATION.METHOD then
+                    table.remove(types, 3)
+                end
+                changed, node.type = imgui.combo("Type", node.type, types)
+
+                -- Method operation
+                if node.operation == Node._OPERATION.METHOD then
+                    local methods = node:getMethods()
+                    local all_methods = {""}
+
+                    for i, method_parent in ipairs(methods) do
+                        table.insert(all_methods, "\n" .. method_parent.type)
+                        for j, method in ipairs(method_parent.methods) do
+                            local args = table.concat(method.args, ", ")
+                            table.insert(all_methods, string.format("%d-%d.   %s(%s) | %s", i, j, method.name, args,
+                                method.returnType))
+                        end
+                    end
+
+                    changed, node.method_combo = imgui.combo("Method", node.method_combo, all_methods)
+                    --changed, node.method_combo = HybridCombo.create("Method", node.method_combo, all_methods)
+                    if changed and node.method_combo > 1 then
+                        local combo_method = all_methods[node.method_combo]
+                        local method_type_group, method_index = combo_method:match("(%d+)-(%d+)")
+                        node.method_index_group = tonumber(method_type_group)
+                        node.method_index = tonumber(method_index)
+
+                        node.call_was_active = false
+                        if node.type == Node._TYPE.CALL then
+                            node.ending_value = nil
+                        end
+                    end
+
+                    local method = node:getMethod()
+                    if method then
+                        if method:get_num_params() > 0 then
+                            if node.method_args == nil then
+                                node.method_args = {}
+                            end
+                            for i, arg in ipairs(method:get_param_types()) do
+                                changed, node.method_args[i] = imgui.input_text(
+                                    "Arg " .. i .. "(" .. arg:get_name() .. ")", node.method_args[i])
+                                if changed then
+                                    node.call_was_active = false
+                                end
+                            end
+                        end
+                    end
+
+                    if node.type == Node._TYPE.SET then
+                        changed, node.set_active = imgui.checkbox("Active", node.set_active)
+                    elseif node.type == Node._TYPE.CALL then
+                        if imgui.button("Call") then
+                            node.call_active = true
+                        end
+                    end
+
+                elseif node.operation == Node._OPERATION.FIELD then
+                    local fields = node:getFields()
+                    local all_fields = {""}
+
+                    for i, field_parent in ipairs(fields) do
+                        table.insert(all_fields, "\n" .. field_parent.type)
+                        for j, field in ipairs(field_parent.fields) do
+                            table.insert(all_fields, string.format("%d-%d.   %s | %s", i, j, field.name, field.type))
+                        end
+                    end
+
+                    changed, node.field_combo = imgui.combo("Field", node.field_combo, all_fields)
+                    if changed then
+                        local combo_field = all_fields[node.field_combo]
+                        local field_type_group, field_index = combo_field:match("(%d+)-(%d+)")
+                        node.field_index_group = tonumber(field_type_group)
+                        node.field_index = tonumber(field_index)
+
+                        node.set_active = false
+                    end
+
+                    if node.type == Node._TYPE.SET then
+                        changed, node.field_setValue = imgui.input_text("Set Value", node.field_setValue)
+                        changed, node.set_active = imgui.checkbox("Active", node.set_active)
+                    end
+
+                elseif node.operation == Node._OPERATION.ARRAYINDEX then
+                    changed, node.arrayIndex = imgui.input_text("Array Index", node.arrayIndex)
+                end
+
+                imgui.spacing()
+                imgui.spacing()
+                imgui.spacing()
+
+                -- Run the node
+                node:run()
+
+                -- Create the output attribute
+                local output = node.ending_value
+                local can_continue = type(output) == "userdata"
+
+                if node.output_attr == nil and can_continue then
+                    node.output_attr = nextConnecterCount()
+                end
+
+                local output_text = can_continue and output:get_type_definition():get_name() or tostring(output)
+                if output_text == "Void" then
+                    can_continue = false
+                    output_text = output
+                elseif tostring(node.starting_value) == "nil" then
+                    output_text = node.status
+                    can_continue = false
+                end
+                local output_pos = imgui.get_cursor_pos()
+                output_pos.x = output_pos.x + NODE_WIDTH - imgui.calc_text_size(output_text).x + 45
+                imgui.set_cursor_pos(output_pos)
+
+                imnodes.begin_output_attribute(node.output_attr)
+
+                imgui.text(output_text)
+                tooltip(node.status)
+
+                imnodes.end_output_attribute()
+
+                imgui.spacing()
+                imgui.spacing()
+                imgui.spacing()
+
+                local new_node_pos = imgui.get_cursor_pos()
+                if imgui.button("- Remove Node") then
+                    node:remove()
+                end
+
+                imgui.same_line()
+
+                -- Add a new child node
+                new_node_pos.x = new_node_pos.x + NODE_WIDTH - imgui.calc_text_size("+ Create Node").x + 45
+                imgui.set_cursor_pos(new_node_pos)
+                if can_continue and imgui.button("+ Add Child Node") then
+                    local new_node = Node:new()
+                    node:addChild(new_node)
+                end
+
+                imnodes.end_node()
+                imgui.pop_id()
+
+                if not nodes_moved[node.node_id] then
+                    if node.node_pos then
+                        imnodes.set_node_editor_space_pos(node.node_id, node.node_pos.x, node.node_pos.y)
+                    else
+                        local parent_node_pos = imnodes.get_node_editor_space_pos(node:getParent().node_id)
+                        local y_offset_range = 300
+                        local y_offset = math.random(1, y_offset_range) - y_offset_range / 2
+                        local new_pos = Vector2f.new(parent_node_pos.x + NODE_WIDTH + 100, parent_node_pos.y + y_offset)
+                        imnodes.set_node_editor_space_pos(node.node_id, new_pos.x, new_pos.y)
+                    end
+                    nodes_moved[node.node_id] = true
+                end
+                if not node.node_pos then
+                    node.node_pos = {}
+                end
+                local pos = imnodes.get_node_editor_space_pos(node.node_id)
+                node.node_pos = {
+                    x = pos.x,
+                    y = pos.y
+                }
+            end
+
+            -- Recursively draw the child nodes
+            local function drawChildNodes(starter)
+                local children = starter:getChildren()
+                for i, child in ipairs(children) do
+                    drawNode(child)
+
+                    -- Draw the link between the starter and the child node
+                    -- Make it red if the starting value of the child is nil
+                    local starting_value_nil = starter.ending_value == nil
+                    if starting_value_nil then
+                        imnodes.push_color_style(7, 0x80142196) -- AABBGGRR
+                    end
+                    imnodes.link(nextLinkCount(), child:getParent().output_attr, child.input_attr)
+                    if starting_value_nil then
+                        imnodes.pop_color_style()
+                    end
+
+                    -- Recursively draw the child nodes
+                    drawChildNodes(child)
+                end
+            end
+
+            -- Draw the child nodes
+            drawChildNodes(starter)
+
+        end
+
+        imnodes.pop_color_style(2)
+        imgui.pop_style_color(2)
+        imgui.pop_item_width()
+        imnodes.minimap(0.2, 0)
+        imnodes.end_node_editor()
+
+        imgui.end_window()
+        imgui.pop_style_var(3)
+    
+    end
+
 end)
