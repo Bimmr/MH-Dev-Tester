@@ -358,7 +358,7 @@ re.on_draw_ui(function()
                 imgui.spacing()
 
                 -- Display the node controls
-                changed, node.operation = imgui.combo("Operation", node.operation, {"Method", "Field", "ArrayIndex"})
+                changed, node.operation = imgui.combo("Operation", node.operation, {"Method", "Field", "Array"})
                 local types = {"Get", "Set", "Call"}
 
                 -- Remove the "Call" option if not a method
@@ -447,8 +447,36 @@ re.on_draw_ui(function()
                         changed, node.set_active = imgui.checkbox("Active", node.set_active)
                     end
 
-                elseif node.operation == Node._OPERATION.ARRAYINDEX then
-                    changed, node.arrayIndex = imgui.input_text("Array Index", node.arrayIndex)
+                elseif node.operation == Node._OPERATION.ARRAY then
+                    local array_entry = node:getArrayData()
+                    local array_values = node.starting_value
+                    local all_array_values = {""}
+                    
+                    print(type(array_values))
+                    if type(array_values) ~= "table" and type(array_values) ~= "userdata" then
+                        array_values = {}
+                    end
+
+                    for i, array_value in ipairs(array_values) do
+                        if type(array_value) == "userdata" then
+                            array_value = array_value:get_type_definition():get_name()
+                        else
+                            array_value = tostring(array_value)
+                        end
+                        table.insert(all_array_values, string.format("%d.   %s", i, array_value))
+                    end
+                    changed, array_entry.combo = imgui.combo("Array", array_entry.combo, all_array_values)
+                    if changed then
+                        local combo_array = all_array_values[array_entry.combo]
+                        local array_index = combo_array:match("(%d+)")
+                        array_entry.index = tonumber(array_index)
+                        array_entry.set_value = nil
+                    end
+
+                    if node.type == Node._TYPE.SET then
+                        changed, array_entry.set_value = imgui.input_text("Set Value", array_entry.set_value)
+                        changed, node.set_active = imgui.checkbox("Active", node.set_active)
+                    end
                 end
 
                 imgui.spacing()

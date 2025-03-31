@@ -8,7 +8,7 @@ Node.__index = Node
 Node._OPERATION = {
     METHOD = 1,
     FIELD = 2,
-    ARRAY_INDEX = 3
+    ARRAY = 3
 }
 
 Node._TYPE = {
@@ -40,14 +40,12 @@ function Node:new()
     instance.ending_value = nil
     instance.status = nil
 
-    instance.operation = nil -- [Method/Field/ArrayIndex]
+    instance.operation = nil -- [Method/Field/Array]
     instance.type = nil -- [Get/Set/Call]
 
     instance.method_data = {} -- Array of objects keyed by starting value type
     instance.field_data = {} -- Array of objects keyed by starting value type
-
-    instance.array_index = nil -- Selected array index
-    instance.array_setValue = nil -- Value to set for the array index
+    instance.array_data = {} -- Array of objects keyed by starting value type
 
     instance.call_active = false
     instance.call_was_active = false
@@ -64,19 +62,18 @@ function Node:new()
     return instance
 end
 
+-- Get the method data
+-- @return: table - the method data {combo, group_index, index, args}
 function Node:getMethodData()
     if not self:getStartingValueType() then
-        print("Node:getMethodData: No starting value type")
         return {}
     end
     if not self.method_data then
-        print("Node:getMethodData: No method data")
         self.method_data = {}
     end
     
     local type_key = self:getStartingTypeName()
     if not self.method_data[type_key] then
-        print("Node:getMethodData: No method data for type " .. type_key)
         self.method_data[type_key] = {
             combo = 0,
             group_index = 0,
@@ -84,9 +81,14 @@ function Node:getMethodData()
             args = {}
         }
     end
-    print("Node:getMethodData: Method data for type " .. type_key)
     return self.method_data[type_key]
 end
+
+-- Update the method data
+-- @param combo: number - the combo box index to set. Will ignore if nil
+-- @param group_index: number - the group index to set. Will ignore if nil
+-- @param index: number - the method index to set. Will ignore if nil
+-- @param args: table - the arguments to set. Will ignore if nil
 function Node:updateMethodData(combo, group_index, index, args)
     local field_data = self:getFieldData()
     if not field_data then
@@ -106,6 +108,11 @@ function Node:updateMethodData(combo, group_index, index, args)
     end
 end
 
+-- Update the field data
+-- @param combo: number - the combo box index to set. Will ignore if nil
+-- @param group_index: number - the group index to set. Will ignore if nil
+-- @param index: number - the field index to set. Will ignore if nil
+-- @param set_value: any - the value to set. Will ignore if nil
 function Node:updateFieldData(combo, group_index, index, set_value)
     local field_data = self:getFieldData()
     if not field_data then
@@ -125,6 +132,8 @@ function Node:updateFieldData(combo, group_index, index, set_value)
     end
 end
 
+-- Get the field data
+-- @return: table - the field data {combo, group_index, index, set_value}
 function Node:getFieldData()
     if not self:getStartingValueType() then
         return {}
@@ -143,6 +152,42 @@ function Node:getFieldData()
         }
     end
     return self.field_data[type_key]
+end
+
+-- Get the array data
+-- @return: table - the array data for the node {index, set_value}
+function Node:getArrayData()
+    if not self:getStartingValueType() then
+        return {}
+    end
+    if not self.array_data then
+        self.array_data = {}
+    end
+    
+    local type_key = self:getStartingTypeName()
+    if not self.array_data[type_key] then
+        self.array_data[type_key] = {
+            index = nil,
+            set_value = nil
+        }
+    end
+    return self.array_data[type_key]
+end
+
+-- Update the array data
+-- @param index: number - the index to set. Will ignore if nil
+-- @param set_value: any - the value to set. Will ignore if nil
+function Node:updateArrayData(index, set_value)
+    local array_data = self:getArrayData()
+    if not array_data then
+        return
+    end
+    if index ~= nil then 
+        array_data.index = index
+    end
+    if set_value ~= nil then 
+        array_data.set_value = set_value
+    end
 end
 
 -- Set the parent node id
@@ -219,11 +264,8 @@ end
 -- Reset the node to its initial state
 -- @return: Node - the reset node
 function Node:reset()
-    self.operation = nil
-    self.type = nil
+   
     self.status = nil
-    self.array_index = nil
-    self.array_setValue = nil
     self.call_active = false
     self.call_was_active = false
     self.set_active = false
@@ -356,15 +398,6 @@ function Node:getFields(deep)
     return fieldsTable
 end
 
--- Get the array index
--- @return: number - the array index
-function Node:getArrayIndex()
-    if not self.array_index then
-        return nil
-    end
-    return self.array_index
-end
-
 -- Perform the action based on the operation and Type
 -- @updateChildren: boolean - if true, update children values
 function Node:run(updateChildren)
@@ -491,11 +524,17 @@ function Node:run(updateChildren)
             end
         end
 
-    elseif self.operation == Node._OPERATION.ARRAY_INDEX then -- Array Index (Get/Set)
-        local index = self:getArrayIndex()
+    elseif self.operation == Node._OPERATION.ARRAY then -- Array Index (Get/Set)
+        local array_data = self:getArrayData()
+        local index = array_data.index
 
         if not index then -- Check if selected index is valid
             self.status = "Failed: ArrayIndex - Not selected"
+        end
+        if type(self.starting_value) ~= "table" and type(self.starting_value) ~= "userdata" then -- Check if starting value is a table
+            self.status = "Failed: ArrayIndex - Invalid starting value type"
+            self.ending_value = nil
+            return
         end
 
         if self.type == Node._TYPE.GET then -- If type is Get
@@ -505,7 +544,7 @@ function Node:run(updateChildren)
             if not self.set_active then -- Check if set is active
                 self.status = "Waiting: ArrayIndex/Set - Set not active"
             else -- Set array index value
-                self.starting_value[index] = self.array_setValue
+                self.starting_value[index] = array_data.set_value
                 self.ending_value = self.starting_value[index]
                 self.status = "Success: ArrayIndex/Set"
             end
