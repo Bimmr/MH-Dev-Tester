@@ -60,7 +60,6 @@ local function save(name)
         starters = starters
     }
     Config.saveConfig(name, data)
-    re.msg("Saved config to " .. name)
 end
 
 -- Load the data from the config file
@@ -77,27 +76,41 @@ local function load(name)
         local child = Node:new()
         child.operation = data.operation
         child.type = data.type
-        child.method_index = data.method_index
-        child.method_index_group = data.method_index_group
-        child.method_combo = data.method_combo
-        child.method_args = data.method_args
-        child.field_index = data.field_index
-        child.field_setValue = data.field_setValue
-        child.field_index_group = data.field_index_group
-        child.field_combo = data.field_combo
         child.status = data.status
         child.array_index = data.array_index
         child.array_setValue = data.array_setValue
         child.call_active = data.call_active or false
         child.set_active = data.set_active or false
         child.parent_is_starter = data.parent_is_starter or false
-        child.ignore_reset_on_value_change = true
         child.node_id = data.node_id
         child.node_pos = data.node_pos
         child.input_attr = data.input_attr
         child.output_attr = data.output_attr
+        if data.method_data then
+            child.method_data = data.method_data
+            child.field_data = data.field_data
+        end
 
         parent:addChild(child)
+        
+        if not data.method_data then
+           
+            local type_key = child:getStartingTypeName()
+            if type_key then
+                child.method_data[type_key] = {
+                    combo = data.method_combo,
+                    group_index = data.method_index_group,
+                    index = data.method_index,
+                    args = data.method_args
+                }
+                child.field_data[type_key] = {
+                    combo = data.field_combo,
+                    group_index = data.field_index_group,
+                    index = data.field_index,
+                    set_value = data.field_setValue
+                }
+            end
+        end
 
         if data.children ~= nil then
             for _, child_data in ipairs(data.children) do
@@ -165,6 +178,7 @@ re.on_draw_ui(function()
                     changed, file_save_name = imgui.input_text("File Name", file_save_name)
                     if imgui.button("Save") then
                         save(file_save_name)
+                        re.msg("Saved config to " .. file_save_name)
                     end
                     imgui.spacing()
                     imgui.end_menu()
@@ -185,6 +199,14 @@ re.on_draw_ui(function()
                             reset()
                             load(file_name)
                             file_save_name = file_name
+                        end
+                    end
+                    imgui.same_line()
+                    if imgui.button("Delete") then
+                        local file_name = file_names[file_load_combo_index]
+                        if file_name ~= nil then
+                            Config.deleteConfig(file_name)
+                            re.msg("Config file " .. file_save_name.. " deleted")
                         end
                     end
 
@@ -327,7 +349,7 @@ re.on_draw_ui(function()
                 -- Create the node title bar
                 imnodes.begin_node_titlebar()
                 imnodes.begin_input_attribute(node.input_attr)
-                imgui.text(node.starting_value and node.starting_value:get_type_definition():get_full_name() or "Input")
+                imgui.text(node:getStartingTypeName())
                 imnodes.end_input_attribute()
                 imnodes.end_node_titlebar()
 
@@ -347,6 +369,8 @@ re.on_draw_ui(function()
 
                 -- Method operation
                 if node.operation == Node._OPERATION.METHOD then
+                    local method_entry = node:getMethodData()
+
                     local methods = node:getMethods()
                     local all_methods = {""}
 
@@ -354,18 +378,16 @@ re.on_draw_ui(function()
                         table.insert(all_methods, "\n" .. method_parent.type)
                         for j, method in ipairs(method_parent.methods) do
                             local args = table.concat(method.args, ", ")
-                            table.insert(all_methods, string.format("%d-%d.   %s(%s) | %s", i, j, method.name, args,
-                                method.returnType))
+                            table.insert(all_methods, string.format("%d-%d.   %s(%s) | %s", i, j, method.name, args, method.returnType))
                         end
                     end
 
-                    changed, node.method_combo = imgui.combo("Method", node.method_combo, all_methods)
-                    --changed, node.method_combo = HybridCombo.create("Method", node.method_combo, all_methods)
-                    if changed and node.method_combo > 1 then
-                        local combo_method = all_methods[node.method_combo]
+                    changed, method_entry.combo = imgui.combo("Method", method_entry.combo, all_methods)
+                    if changed and method_entry.combo > 1 then
+                        local combo_method = all_methods[method_entry.combo]
                         local method_type_group, method_index = combo_method:match("(%d+)-(%d+)")
-                        node.method_index_group = tonumber(method_type_group)
-                        node.method_index = tonumber(method_index)
+                        method_entry.group_index = tonumber(method_type_group)
+                        method_entry.index = tonumber(method_index)
 
                         node.call_was_active = false
                         if node.type == Node._TYPE.CALL then
@@ -376,12 +398,12 @@ re.on_draw_ui(function()
                     local method = node:getMethod()
                     if method then
                         if method:get_num_params() > 0 then
-                            if node.method_args == nil then
-                                node.method_args = {}
+                            if method_entry.args == nil then
+                                method_entry.args = {}
                             end
                             for i, arg in ipairs(method:get_param_types()) do
-                                changed, node.method_args[i] = imgui.input_text(
-                                    "Arg " .. i .. "(" .. arg:get_name() .. ")", node.method_args[i])
+                                changed, method_entry.args[i] = imgui.input_text(
+                                    "Arg " .. i .. "(" .. arg:get_name() .. ")", method_entry.args[i])
                                 if changed then
                                     node.call_was_active = false
                                 end
@@ -398,6 +420,8 @@ re.on_draw_ui(function()
                     end
 
                 elseif node.operation == Node._OPERATION.FIELD then
+                    local field_entry = node:getFieldData()
+
                     local fields = node:getFields()
                     local all_fields = {""}
 
@@ -408,18 +432,18 @@ re.on_draw_ui(function()
                         end
                     end
 
-                    changed, node.field_combo = imgui.combo("Field", node.field_combo, all_fields)
+                    changed, field_entry.combo = imgui.combo("Field", field_entry.combo, all_fields)
                     if changed then
-                        local combo_field = all_fields[node.field_combo]
+                        local combo_field = all_fields[field_entry.combo]
                         local field_type_group, field_index = combo_field:match("(%d+)-(%d+)")
-                        node.field_index_group = tonumber(field_type_group)
-                        node.field_index = tonumber(field_index)
+                        field_entry.group_index = tonumber(field_type_group)
+                        field_entry.index = tonumber(field_index)
 
                         node.set_active = false
                     end
 
                     if node.type == Node._TYPE.SET then
-                        changed, node.field_setValue = imgui.input_text("Set Value", node.field_setValue)
+                        changed, field_entry.set_value = imgui.input_text("Set Value", field_entry.set_value)
                         changed, node.set_active = imgui.checkbox("Active", node.set_active)
                     end
 

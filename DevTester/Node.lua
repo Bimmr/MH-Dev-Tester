@@ -43,15 +43,8 @@ function Node:new()
     instance.operation = nil -- [Method/Field/ArrayIndex]
     instance.type = nil -- [Get/Set/Call]
 
-    instance.method_combo = nil -- Selected method combo box
-    instance.method_group_index = nil -- Selected method index
-    instance.method_index = nil -- Selected method index
-    instance.method_args = nil -- Arguments for the method
-
-    instance.field_combo = nil -- Selected field combo box
-    instance.field_group_index = nil -- Selected field index
-    instance.field_index = nil -- Selected field index
-    instance.field_setValue = nil -- Value to set for the field
+    instance.method_data = {} -- Array of objects keyed by starting value type
+    instance.field_data = {} -- Array of objects keyed by starting value type
 
     instance.array_index = nil -- Selected array index
     instance.array_setValue = nil -- Value to set for the array index
@@ -69,6 +62,87 @@ function Node:new()
     NODES[instance.id] = instance
 
     return instance
+end
+
+function Node:getMethodData()
+    if not self:getStartingValueType() then
+        print("Node:getMethodData: No starting value type")
+        return {}
+    end
+    if not self.method_data then
+        print("Node:getMethodData: No method data")
+        self.method_data = {}
+    end
+    
+    local type_key = self:getStartingTypeName()
+    if not self.method_data[type_key] then
+        print("Node:getMethodData: No method data for type " .. type_key)
+        self.method_data[type_key] = {
+            combo = 0,
+            group_index = 0,
+            index = 0,
+            args = {}
+        }
+    end
+    print("Node:getMethodData: Method data for type " .. type_key)
+    return self.method_data[type_key]
+end
+function Node:updateMethodData(combo, group_index, index, args)
+    local field_data = self:getFieldData()
+    if not field_data then
+        return
+    end
+    if combo ~= nil then 
+        field_data.combo = combo
+    end
+    if group_index ~= nil then 
+        field_data.group_index = group_index
+    end
+    if index ~= nil then 
+        field_data.index = index
+    end
+    if args ~= nil then 
+        field_data.args = args
+    end
+end
+
+function Node:updateFieldData(combo, group_index, index, set_value)
+    local field_data = self:getFieldData()
+    if not field_data then
+        return
+    end
+    if combo ~= nil then 
+        field_data.combo = combo
+    end
+    if group_index ~= nil then 
+        field_data.group_index = group_index
+    end
+    if index ~= nil then 
+        field_data.index = index
+    end
+    if set_value ~= nil then 
+        field_data.set_value = set_value
+    end
+end
+
+function Node:getFieldData()
+    if not self:getStartingValueType() then
+        return {}
+    end
+    if not self.field_data then
+        self.field_data = {}
+    end
+    
+    local type_key = self:getStartingTypeName()
+    if not self.field_data[type_key] then
+        self.field_data[type_key] = {
+            combo = 0,
+            group_index = 0,
+            index = 0,
+            set_value = nil
+        }
+    end
+    return self.field_data[type_key]
 end
 
 -- Set the parent node id
@@ -136,11 +210,10 @@ end
 -- Set the starting value. Will reset the method and field indexes if the value is different
 -- @param value: any - the starting value to set
 function Node:setStartingValue(value)
-    if self.starting_value ~= value and self.starting_value ~= nil and not self.ignore_reset_on_value_change then
+    if self.starting_value ~= value and self.starting_value ~= nil then
         self:reset()
     end
     self.starting_value = value
-    self.ignore_reset_on_value_change = nil
 end
 
 -- Reset the node to its initial state
@@ -148,14 +221,6 @@ end
 function Node:reset()
     self.operation = nil
     self.type = nil
-    self.method_index = nil
-    self.method_index_group = nil
-    self.method_combo = nil
-    self.method_args = nil
-    self.field_index = nil
-    self.field_setValue = nil
-    self.field_index_group = nil
-    self.field_combo = nil
     self.status = nil
     self.array_index = nil
     self.array_setValue = nil
@@ -171,7 +236,20 @@ function Node:getStartingValueType()
     if not self.starting_value then
         return nil
     end
-    return self.starting_value:get_type_definition()
+    if type(self.starting_value) == "userdata" then
+        return self.starting_value:get_type_definition()
+    else 
+        return nil
+    end
+end
+
+function Node:getStartingTypeName()
+    local type_value = self:getStartingValueType()
+    if type(type_value) == "userdata" then
+        return type_value:get_full_name()
+    else
+        return type(self.starting_value)
+    end
 end
 
 -- Get the methods of the value type
@@ -182,6 +260,9 @@ function Node:getMethods(deep)
         deep = true
     end
     local type = self:getStartingValueType()
+    if not type then
+        return {}
+    end
     local methodsTable = {}
     while type do
         local methods = type:get_methods()
@@ -213,25 +294,35 @@ end
 -- Get the Method at index
 -- @return: Method - the method object
 function Node:getMethod()
-    if not self.method_index_group or not self.method_index then
+    local type_key = self:getStartingTypeName()
+    if not type_key or not self.method_data[type_key] then
         return nil
     end
-    if not self:getMethods()[self.method_index_group] then
+    local method_entry = self.method_data[type_key]
+    if not method_entry.group_index or not method_entry.index then
         return nil
     end
-    if not self:getMethods()[self.method_index_group].methods[self.method_index] then
+    if not self:getMethods()[method_entry.group_index] then
         return nil
     end
-    return self:getMethods()[self.method_index_group].methods[self.method_index].data
+    
+    return self:getMethods()[method_entry.group_index].methods[method_entry.index] and 
+           self:getMethods()[method_entry.group_index].methods[method_entry.index].data or nil
 end
 
 -- Get the Field at index
 -- @return: Field - the field object
 function Node:getField()
-    if not self.field_index_group or not self.field_index then
+    local type_key = self:getStartingTypeName()
+    if not type_key or not self.field_data[type_key] then
         return nil
     end
-    return self:getFields()[self.field_index_group].fields[self.field_index].data
+    local field_entry = self.field_data[type_key]
+    if not field_entry or not self:getFields()[field_entry.group_index] then
+        return nil
+    end
+    return self:getFields()[field_entry.group_index].fields[field_entry.index] and 
+           self:getFields()[field_entry.group_index].fields[field_entry.index].data or nil
 end
 
 -- Get the fields of the value type
@@ -286,6 +377,14 @@ function Node:run(updateChildren)
         self.ending_value = nil
         return
     elseif self.operation == Node._OPERATION.METHOD then -- Methods (Get/Set/Call)
+        local type_key = self:getStartingValueType()
+        if not type_key then
+            self.status = "Failed: Method - Invalid starting value type"
+            self.ending_value = nil
+            return
+        end
+
+        local method_entry = self:getMethodData()
         local method = self:getMethod()
 
         if not method then -- Check if selected method is valid
@@ -297,15 +396,15 @@ function Node:run(updateChildren)
         if self.type == Node._TYPE.GET then -- If type is Get
 
             if method.args then -- If method has arguments
-                if not self.method_args then -- Check if args provided
+                if not method_entry.args then -- Check if args provided
                     self.status = "Failed: Method/Get - No args provided"
                     self.ending_value = nil
-                elseif self.method_args and #self.method_args ~= #method.args then -- Check if args provided match length of method args
+                elseif method_entry.args and #method_entry.args ~= #method.args then -- Check if args provided match length of method args
                     self.status = "Failed: Method/Get - Invalid arguments"
                     self.ending_value = nil
                 else -- Call method with args
                     self.status = "Success: Method/Get w/ args"
-                    self.ending_value = method:call(self.starting_value, self.method_args)
+                    self.ending_value = method:call(self.starting_value, method_entry.args)
                 end
 
             else -- Call method without args
@@ -319,15 +418,15 @@ function Node:run(updateChildren)
                 self.status = "Waiting: Method/Set - Set not active"
 
             elseif method:get_num_params() > 0 then -- If method has arguments
-                if not self.method_args then -- Check if args provided
+                if not method_entry.args then -- Check if args provided
                     self.status = "Failed: Method/Set - No args provided"
                     self.ending_value = nil
-                elseif self.method_args and #self.method_args ~= method:get_num_params() then -- Check if args provided match length of method args
+                elseif method_entry.args and #method_entry.args ~= method:get_num_params() then -- Check if args provided match length of method args
                     self.status = "Failed: Method/Set - Invalid arguments"
                     self.ending_value = nil
                 else -- Call method with args
                     self.status = "Success: Method/Set w/ args"
-                    self.ending_value = method:call(self.starting_value, self.method_args)
+                    self.ending_value = method:call(self.starting_value, method_entry.args)
                 end
 
             else -- Call method without args
@@ -340,14 +439,14 @@ function Node:run(updateChildren)
                 self.status = "Waiting: Method/Call - Call not active"
             end
             if method:get_num_params() > 0 then -- If method has arguments
-                if not self.method_args then -- Check if args provided
+                if not method_entry.args then -- Check if args provided
                     self.status = "Failed: Method/Call - No args provided"
                     self.ending_value = nil
-                elseif self.method_args and #self.method_args ~= method:get_num_params() then -- Check if args provided match length of method args
+                elseif method_entry.args and #method_entry.args ~= method:get_num_params() then -- Check if args provided match length of method args
                     self.status = "Failed: Method/Call - Invalid arguments"
                     self.ending_value = nil
                 elseif self.call_active then -- Call method with args
-                    self.ending_value = method:call(self.starting_value, self.args)
+                    self.ending_value = method:call(self.starting_value, method_entry.args)
                     self.status = "Success: Method/Call w/ args"
                     self.call_active = false
                     self.call_was_active = true
@@ -362,6 +461,14 @@ function Node:run(updateChildren)
         end
 
     elseif self.operation == Node._OPERATION.FIELD then -- Fields (Get/Set)
+        local type_key = self:getStartingValueType()
+        if not type_key then
+            self.status = "Failed: Field - Invalid starting value type"
+            self.ending_value = nil
+            return
+        end
+
+        local field_entry = self:getFieldData()
         local field = self:getField()
 
         if not field then -- Check if selected field is valid
@@ -378,7 +485,7 @@ function Node:run(updateChildren)
             if not self.set_active then -- Check if set is active
                 self.status = "Waiting: Field/Set - Set not active"
             else -- Set field value
-                self.starting_value:set_field(field:get_name(), self.field_setValue)
+                self.starting_value:set_field(field:get_name(), field_entry.set_value)
                 self.ending_value = self.starting_value:get_field(field:get_name())
                 self.status = "Success: Field/Set"
             end
