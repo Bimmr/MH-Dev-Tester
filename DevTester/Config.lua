@@ -62,4 +62,9 @@ function Config.getAllConfigs()
     return configs
 end
 
+function Config.deleteConfig(name)
+    Config.saveConfig(name, nil)
+    Config.loadConfigs()
+end
+
 return Config
