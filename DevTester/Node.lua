@@ -528,8 +528,10 @@ function Node:run(updateChildren)
         local array_data = self:getArrayData()
         local index = array_data.index
 
-        if not index then -- Check if selected index is valid
+        if not index or index < 1 then -- Check if selected index is valid
             self.status = "Failed: ArrayIndex - Not selected"
+            self.ending_value = nil
+            return
         end
         if type(self.starting_value) ~= "table" and type(self.starting_value) ~= "userdata" then -- Check if starting value is a table
             self.status = "Failed: ArrayIndex - Invalid starting value type"
@@ -539,14 +541,14 @@ function Node:run(updateChildren)
 
         if self.type == Node._TYPE.GET then -- If type is Get
             self.ending_value = self.starting_value[index]
-            self.status = "Success: ArrayIndex/Get"
+            self.status = "Success: ArrayIndex/Get " .. index
         elseif self.type == Node._TYPE.SET then -- If type is Set
             if not self.set_active then -- Check if set is active
-                self.status = "Waiting: ArrayIndex/Set - Set not active"
+                self.status = "Waiting: ArrayIndex/Set - Set not active " .. index
             else -- Set array index value
                 self.starting_value[index] = array_data.set_value
                 self.ending_value = self.starting_value[index]
-                self.status = "Success: ArrayIndex/Set"
+                self.status = "Success: ArrayIndex/Set " .. index
             end
         end
     end
@@ -583,9 +585,7 @@ end
 
 -- Get a JSON dump of the node
 function Node:print()
-    return json.dump_string(self, {
-        indent = true
-    })
+    return json.dump_string(self, 2)
 end
 
 return Node

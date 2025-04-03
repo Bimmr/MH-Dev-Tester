@@ -452,7 +452,6 @@ re.on_draw_ui(function()
                     local array_values = node.starting_value
                     local all_array_values = {""}
                     
-                    print(type(array_values))
                     if type(array_values) ~= "table" and type(array_values) ~= "userdata" then
                         array_values = {}
                     end
@@ -465,7 +464,30 @@ re.on_draw_ui(function()
                         end
                         table.insert(all_array_values, string.format("%d.   %s", i, array_value))
                     end
+                    
+                    local can_left = array_entry.combo and array_entry.combo > 1
+                    local can_right = array_entry.combo and array_entry.combo < #array_values
+                    local width_of_array_combo = imgui.calc_item_width()
+                    
+                    if can_left and can_right then
+                        width_of_array_combo = width_of_array_combo - 20
+                    end
+                    imgui.set_next_item_width(width_of_array_combo)
                     changed, array_entry.combo = imgui.combo("Array", array_entry.combo, all_array_values)
+                    if can_left then
+                        imgui.same_line()
+                        if imgui.arrow_button("Left", 0) then
+                            array_entry.combo = array_entry.combo - 1
+                            changed = true
+                        end
+                    end
+                    if can_right then
+                        imgui.same_line()
+                        if imgui.arrow_button("Right", 1) then
+                            array_entry.combo = array_entry.combo + 1
+                            changed = true
+                        end
+                    end 
                     if changed then
                         local combo_array = all_array_values[array_entry.combo]
                         local array_index = combo_array:match("(%d+)")
@@ -494,13 +516,16 @@ re.on_draw_ui(function()
                     node.output_attr = nextConnecterCount()
                 end
 
-                local output_text = can_continue and output:get_type_definition():get_name() or tostring(output)
-                if output_text == "Void" then
+                local output_text = tostring(output)
+                if node.starting_value == nil then
+                    can_continue = false
+                    output_text = node.status
+                elseif can_continue then
+                    output_text = node.ending_value:get_type_definition():get_name().. " | " .. node.ending_value:get_address()
+                end
+                if tostring(output) == "Void" then
                     can_continue = false
                     output_text = output
-                elseif tostring(node.starting_value) == "nil" then
-                    output_text = node.status
-                    can_continue = false
                 end
                 local output_pos = imgui.get_cursor_pos()
                 output_pos.x = output_pos.x + NODE_WIDTH - imgui.calc_text_size(output_text).x + 45

@@ -229,7 +229,7 @@ end
 
 -- Get a JSON dump of the node
 function Starter:print()
-    return json.dump_string(self, {indent = true})
+    return json.dump_string(self, 2)
 end
 
 
