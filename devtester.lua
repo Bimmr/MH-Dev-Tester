@@ -92,9 +92,9 @@ local function load(name)
         end
 
         parent:addChild(child)
-        
+
         if not data.method_data then
-           
+
             local type_key = child:getStartingTypeName()
             if type_key then
                 child.method_data[type_key] = {
@@ -206,7 +206,7 @@ re.on_draw_ui(function()
                         local file_name = file_names[file_load_combo_index]
                         if file_name ~= nil then
                             Config.deleteConfig(file_name)
-                            re.msg("Config file " .. file_save_name.. " deleted")
+                            re.msg("Config file " .. file_save_name .. " deleted")
                         end
                     end
 
@@ -248,7 +248,13 @@ re.on_draw_ui(function()
             imnodes.begin_node(starter.node_id)
 
             -- Draw starter controls
+
+            if starter.type == Starter._TYPE.HOOK and starter:isHookActive() then
+                imgui.begin_disabled()
+            end
+
             imnodes.begin_node_titlebar()
+
             changed, starter.type = imgui.combo("Type", starter.type, {"Managed", "Hook"})
             imnodes.end_node_titlebar()
             changed, starter.path = imgui.input_text("Path", starter.path)
@@ -266,6 +272,10 @@ re.on_draw_ui(function()
                         starter:startHook()
                     end
                 end
+            end
+
+            if starter.type == Starter._TYPE.HOOK and starter:isHookActive() then
+                imgui.end_disabled()
             end
 
             imgui.spacing()
@@ -299,6 +309,11 @@ re.on_draw_ui(function()
                 imgui.spacing()
                 imgui.spacing()
                 imgui.spacing()
+            else
+                local output_pos = imgui.get_cursor_pos()
+                output_pos.x = output_pos.x + NODE_WIDTH - imgui.calc_text_size(output).x + 30
+                imgui.set_cursor_pos(output_pos)
+                imgui.text(output)
             end
 
             local new_node_pos = imgui.get_cursor_pos()
@@ -378,7 +393,8 @@ re.on_draw_ui(function()
                         table.insert(all_methods, "\n" .. method_parent.type)
                         for j, method in ipairs(method_parent.methods) do
                             local args = table.concat(method.args, ", ")
-                            table.insert(all_methods, string.format("%d-%d.   %s(%s) | %s", i, j, method.name, args, method.returnType))
+                            table.insert(all_methods, string.format("%d-%d.   %s(%s) | %s", i, j, method.name, args,
+                                method.returnType))
                         end
                     end
 
@@ -451,7 +467,7 @@ re.on_draw_ui(function()
                     local array_entry = node:getArrayData()
                     local array_values = node.starting_value
                     local all_array_values = {""}
-                    
+
                     if type(array_values) ~= "table" and type(array_values) ~= "userdata" then
                         array_values = {}
                     end
@@ -464,11 +480,11 @@ re.on_draw_ui(function()
                         end
                         table.insert(all_array_values, string.format("%d.   %s", i, array_value))
                     end
-                    
+
                     local can_left = array_entry.combo and array_entry.combo > 1
                     local can_right = array_entry.combo and array_entry.combo < #array_values
                     local width_of_array_combo = imgui.calc_item_width()
-                    
+
                     if can_left and can_right then
                         width_of_array_combo = width_of_array_combo - 20
                     end
@@ -487,7 +503,7 @@ re.on_draw_ui(function()
                             array_entry.combo = array_entry.combo + 1
                             changed = true
                         end
-                    end 
+                    end
                     if changed then
                         local combo_array = all_array_values[array_entry.combo]
                         local array_index = combo_array:match("(%d+)")
@@ -521,7 +537,8 @@ re.on_draw_ui(function()
                     can_continue = false
                     output_text = node.status
                 elseif can_continue then
-                    output_text = node.ending_value:get_type_definition():get_name().. " | " .. node.ending_value:get_address()
+                    output_text = node.ending_value:get_type_definition():get_name() .. " | " ..
+                                      node.ending_value:get_address()
                 end
                 if tostring(output) == "Void" then
                     can_continue = false
@@ -617,7 +634,7 @@ re.on_draw_ui(function()
 
         imgui.end_window()
         imgui.pop_style_var(3)
-    
+
     end
 
 end)

@@ -38,6 +38,8 @@ function Starter:new()
     instance.hook_timing = Starter._HOOK_TIMING.PRE
     instance.hook_methodName = "update"
     instance.hook_active = false
+    
+    instance.hook_method_data = {} -- Array of objects keyed by starting value type
 
     instance.ending_value = nil
 
@@ -146,7 +148,9 @@ end
 -- Sets the hook to start
 function Starter:startHook()
     self.hook_active = true
-    sdk.hook(method, function(args)
+    log.debug("Hook started for " .. self.path .. " with method " .. self.hook_methodName)
+    sdk.hook(sdk.find_type_definition(self.path):get_method(self.hook_methodName), function(args)
+        log.debug("Pre Hook called for " .. self.path .. " with method " .. self.hook_methodName)
         if self.hook_timing == Starter._HOOK_TIMING.PRE then
             local managed = sdk.to_managed_object(args[2])
             if not managed then
@@ -154,10 +158,14 @@ function Starter:startHook()
                 return
             end
             self.ending_value = managed
+            self.status = "Hook: Pre-hook called, managed object set"
         end
+        
     end, function(retval)
+        log.debug("Post Hook called for " .. self.path .. " with method " .. self.hook_methodName)
         if self.hook_timing == Starter._HOOK_TIMING.POST then
             self.ending_value = retval
+            self.status = "Hook: Post-hook called, retval set"
         end
         return retval
     end)
@@ -174,6 +182,10 @@ function Starter:run()
         self.ending_value = self:getManagedSingleton()
     elseif self.type == Starter._TYPE.HOOK then
         self:checkHook()
+        if not self.hook_active then
+            self.ending_value = nil
+            return
+        end
     end
 
     for i, child in ipairs(self.children) do
