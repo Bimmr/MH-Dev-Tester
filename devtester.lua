@@ -399,6 +399,7 @@ re.on_draw_ui(function()
                     end
 
                     changed, method_entry.combo = imgui.combo("Method", method_entry.combo, all_methods)
+                    --changed, method_entry.combo = HybridCombo.create("Method", method_entry.combo, all_methods)
                     if changed and method_entry.combo > 1 then
                         local combo_method = all_methods[method_entry.combo]
                         local method_type_group, method_index = combo_method:match("(%d+)-(%d+)")

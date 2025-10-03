@@ -1,6 +1,5 @@
 local HybridCombo = {}
 
-
 local hybrid_combo_open = {}
 local hybrid_combo_search_text = {}
 -- Hybrid combo box
@@ -53,13 +52,13 @@ function HybridCombo.create(label, index, options)
 
     imgui.push_style_var(12, 0.0) -- Rounded elements
     imgui.push_style_var(2, Vector2f.new(0, 0)) -- Extra padding
-    imgui.push_style_var(29, Vector2f.new(0,0)) -- Left Align button text
+    imgui.push_style_var(imgui.GuiStyleVar.ButtonTextAlign, Vector2f.new(0,0)) -- Left Align button text
 
     imgui.push_style_color(21, 0x00714A29) -- AABBGGRR (Button Colour)
     imgui.push_style_color(22, 0xFF5c5c5c) -- AABBGGRR (Button Hover Colour)
 
     if imgui.begin_popup_context_item(label .. "-custom-combo", 4096) then
-
+    _, hybrid_combo_search_text[label] = imgui.input_text(label.."1", hybrid_combo_search_text[label], 1048576)
         for i, option in ipairs(options) do
             if option == "" or string.match(option, hybrid_combo_search_text[label]) then
                 local button_pos = imgui.get_cursor_pos()
