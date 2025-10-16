@@ -528,7 +528,7 @@ function Node:run(updateChildren)
         local array_data = self:getArrayData()
         local index = array_data.index
 
-        if not index or index < 1 then -- Check if selected index is valid
+        if not index or index < 0 then -- Check if selected index is valid
             self.status = "Failed: ArrayIndex - Not selected"
             self.ending_value = nil
             return

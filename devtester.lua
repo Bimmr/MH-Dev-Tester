@@ -473,17 +473,35 @@ re.on_draw_ui(function()
                         array_values = {}
                     end
 
-                    for i, array_value in ipairs(array_values) do
-                        if type(array_value) == "userdata" then
-                            array_value = array_value:get_type_definition():get_name()
-                        else
-                            array_value = tostring(array_value)
+                    -- Handle both Lua tables (1-indexed) and managed arrays (0-indexed)
+                    local is_managed_array = type(array_values) == "userdata"
+                    if is_managed_array then
+                        -- Managed array: iterate from 0 to #array_values
+                        for i = 0, #array_values do
+                            local array_value = array_values[i]
+                            if array_value then
+                                if type(array_value) == "userdata" then
+                                    array_value = array_value:get_type_definition():get_name()
+                                else
+                                    array_value = tostring(array_value)
+                                end
+                                table.insert(all_array_values, string.format("%d.   %s", i, array_value))
+                            end
                         end
-                        table.insert(all_array_values, string.format("%d.   %s", i, array_value))
+                    else
+                        -- Lua table: use ipairs (1-indexed)
+                        for i, array_value in ipairs(array_values) do
+                            if type(array_value) == "userdata" then
+                                array_value = array_value:get_type_definition():get_name()
+                            else
+                                array_value = tostring(array_value)
+                            end
+                            table.insert(all_array_values, string.format("%d.   %s", i, array_value))
+                        end
                     end
 
                     local can_left = array_entry.combo and array_entry.combo > 1
-                    local can_right = array_entry.combo and array_entry.combo < #array_values
+                    local can_right = array_entry.combo and array_entry.combo < #all_array_values
                     local width_of_array_combo = imgui.calc_item_width()
 
                     if can_left and can_right then
